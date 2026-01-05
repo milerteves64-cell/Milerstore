@@ -1,0 +1,569 @@
+\<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Miler TopUp Store</title>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- HTML2Canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        .animate-slide-up { animation: slideUp 0.5s ease-out; }
+        #receipt-container { position: absolute; left: -9999px; top: -9999px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100">
+
+    <div id="root"></div>
+    <div id="receipt-container"></div>
+
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
+
+        // --- KONFIGURASI JAM OPERASIONAL ---
+        const JAM_BUKA = 8;  // 08.00 Pagi
+        const JAM_TUTUP = 23; // 23.00 Malam
+
+        // --- ICONS ---
+        const Icons = {
+            Zap: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+            MessageCircle: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>,
+            ChevronLeft: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m15 18-6-6 6-6"/></svg>,
+            CheckCircle: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+            AlertTriangle: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>,
+            X: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>,
+            Wallet: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/></svg>,
+            History: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>,
+            Download: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+            Clock: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>,
+            Moon: (props) => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        };
+
+        // --- DATA GAME ---
+        const GAMES = [
+          { 
+            id: 1, name: 'Free Fire', developer: 'Garena', color: 'from-orange-500 to-red-900', icon: '🔥', inputs: ['Player ID'],
+            items: [
+              { id: 'ff1', amount: '5 Diamonds', price: 3786 },
+              { id: 'ff2', amount: '10 Diamonds', price: 4557 },
+              { id: 'ff3', amount: '15 Diamonds', price: 5330 },
+              { id: 'ff4', amount: '20 Diamonds', price: 6014 },
+              { id: 'ff5', amount: '25 Diamonds', price: 6805 },
+              { id: 'ff6', amount: '30 Diamonds', price: 7545 },
+              { id: 'ff7', amount: '50 Diamonds', price: 8042 },
+              { id: 'ff8', amount: '55 Diamonds', price: 9830 },
+              { id: 'ff9', amount: '70 Diamonds', price: 10977 },
+              { id: 'ff10', amount: '100 Diamonds', price: 14909 },
+              { id: 'ff11', amount: '140 Diamonds', price: 19280 },
+              { id: 'ff12', amount: '355 Diamonds', price: 43855 },
+              { id: 'ff13', amount: '720 Diamonds', price: 89050 },
+              { id: 'ff14', amount: '1.000 Diamonds', price: 120635 },
+              { id: 'ff15', amount: '2.000 Diamonds', price: 230346 },
+            ]
+          },
+          { 
+            id: 2, name: 'Mobile Legends', developer: 'Moonton', color: 'from-blue-600 to-indigo-900', icon: '⚔️', inputs: ['User ID', 'Server ID'],
+            items: [
+              { id: 'ml1', amount: '5 Diamonds', price: 4495 },
+              { id: 'ml2', amount: '12 (11+1) Diamonds', price: 6302 },
+              { id: 'ml3', amount: '19 (17+2) Diamonds', price: 7868 },
+              { id: 'ml4', amount: '28 (25+3) Diamonds', price: 10288 },
+              { id: 'ml5', amount: '36 (33+3) Diamonds', price: 12689 },
+              { id: 'ml6', amount: '44 (40+4) Diamonds', price: 14478 },
+              { id: 'ml7', amount: '56 (51+5) Diamonds', price: 17869 },
+              { id: 'ml8', amount: '59 (53+6) Diamonds', price: 18280 },
+              { id: 'ml9', amount: '85 (77+8) Diamonds', price: 25036 },
+              { id: 'ml10', amount: '170 (154+16) Diamonds', price: 47482 },
+              { id: 'ml11', amount: '222 (200+22) Diamonds', price: 62348 },
+              { id: 'ml12', amount: '257 (234+23) Diamonds', price: 70998 },
+              { id: 'ml13', amount: 'Weekly Diamond Pass', price: 30300 },
+              { id: 'ml14', amount: 'Twilight Pass', price: 153790 },
+              { id: 'ml15', amount: '1.159 (1031+128) DM', price: 297041 },
+            ]
+          },
+        ];
+
+        // --- HELPER FUNCTIONS ---
+        function crc16(s) {
+            let crc = 0xFFFF;
+            for (let i = 0; i < s.length; i++) {
+                crc ^= s.charCodeAt(i) << 8;
+                for (let j = 0; j < 8; j++) {
+                    if ((crc & 0x8000) !== 0) crc = (crc << 1) ^ 0x1021;
+                    else crc = crc << 1;
+                }
+                crc = crc & 0xFFFF;
+            }
+            return crc.toString(16).toUpperCase().padStart(4, '0');
+        }
+
+        function generateQRISString(amount) {
+            const part1 = "00020101021226670016COM.NOBUBANK.WWW01189360050300000903200214528469863669210303UMI51440014ID.CO.QRIS.WWW0215ID20253717051660303UMI520448125303360";
+            const part2 = "5802ID5912MILLER TEVES6005AMBON61059723262070703A01";
+            const amountStr = amount.toString();
+            const amountTag = "54" + amountStr.length.toString().padStart(2, '0') + amountStr;
+            const rawString = part1 + amountTag + part2 + "6304";
+            return rawString + crc16(rawString);
+        }
+
+        function formatRupiah(number) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(number);
+        }
+
+        // --- MAIN COMPONENT ---
+        function App() {
+            const [view, setView] = useState('home'); 
+            const [selectedGame, setSelectedGame] = useState(null);
+            
+            const [userId, setUserId] = useState('');
+            const [serverId, setServerId] = useState('');
+            const [saveId, setSaveId] = useState(true);
+            const [selectedItem, setSelectedItem] = useState(null);
+            
+            const [showConfirmModal, setShowConfirmModal] = useState(false);
+            const [showQRModal, setShowQRModal] = useState(false);
+            const [errorMsg, setErrorMsg] = useState('');
+            
+            // --- LOGIC JAM OPERASIONAL ---
+            const [isStoreOpen, setIsStoreOpen] = useState(true);
+
+            useEffect(() => {
+                const checkTime = () => {
+                    const now = new Date();
+                    const currentHour = now.getHours();
+                    // Buka jika jam >= 8 DAN jam < 23
+                    const isOpen = currentHour >= JAM_BUKA && currentHour < JAM_TUTUP;
+                    setIsStoreOpen(isOpen);
+                };
+                
+                checkTime(); // Cek saat load
+                const timer = setInterval(checkTime, 60000); // Cek tiap menit
+                return () => clearInterval(timer);
+            }, []);
+
+            // History
+            const [history, setHistory] = useState(() => {
+                const saved = localStorage.getItem('miler_history');
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            useEffect(() => {
+                if (selectedGame) {
+                    const savedData = localStorage.getItem(`miler_saved_${selectedGame.id}`);
+                    if (savedData) {
+                        const parsed = JSON.parse(savedData);
+                        setUserId(parsed.userId || '');
+                        setServerId(parsed.serverId || '');
+                    } else {
+                        setUserId('');
+                        setServerId('');
+                    }
+                }
+            }, [selectedGame]);
+
+            const downloadReceipt = (tx) => {
+                const receiptElement = document.createElement('div');
+                receiptElement.innerHTML = `
+                    <div style="width: 350px; background: #fff; color: #000; font-family: sans-serif; padding: 20px; border-radius: 10px; border: 1px solid #ddd;">
+                        <div style="text-align: center; border-bottom: 2px dashed #ccc; padding-bottom: 15px; margin-bottom: 15px;">
+                            <h2 style="margin:0; color: #7c3aed; font-size: 24px; font-weight: bold;">MilerStore</h2>
+                            <p style="margin:5px 0 0; color: #666; font-size: 12px;">Bukti Pembayaran Sah</p>
+                        </div>
+                        <table style="width: 100%; font-size: 14px; margin-bottom: 15px;">
+                            <tr><td style="color: #666; padding: 5px 0;">Tanggal</td><td style="text-align: right; font-weight: bold;">${tx.date}</td></tr>
+                            <tr><td style="color: #666; padding: 5px 0;">Game</td><td style="text-align: right; font-weight: bold;">${tx.game}</td></tr>
+                            <tr><td style="color: #666; padding: 5px 0;">Item</td><td style="text-align: right; font-weight: bold;">${tx.item}</td></tr>
+                            <tr><td style="color: #666; padding: 5px 0;">ID Player</td><td style="text-align: right; font-weight: bold;">${tx.userId}</td></tr>
+                            ${tx.serverId ? `<tr><td style="color: #666; padding: 5px 0;">Server</td><td style="text-align: right; font-weight: bold;">${tx.serverId}</td></tr>` : ''}
+                            <tr><td style="color: #666; padding: 5px 0;">Status</td><td style="text-align: right; color: #16a34a; font-weight: bold;">LUNAS</td></tr>
+                        </table>
+                        <div style="background: #f3f4f6; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; color: #000; text-align: center;">
+                                <span>Total Bayar</span>
+                                <span>${formatRupiah(tx.price)}</span>
+                            </div>
+                        </div>
+                        <div style="text-align: center; font-size: 10px; color: #999; border-top: 1px solid #eee; padding-top: 10px;">
+                            Simpan struk ini sebagai bukti transaksi.<br>Terima kasih telah top up di MilerStore.
+                        </div>
+                    </div>
+                `;
+                document.getElementById('receipt-container').innerHTML = '';
+                document.getElementById('receipt-container').appendChild(receiptElement);
+
+                html2canvas(receiptElement.firstElementChild, { scale: 2 }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `Struk-MilerStore-${tx.id}.png`;
+                    link.href = canvas.toDataURL();
+                    link.click();
+                });
+            };
+
+            const goToHome = () => {
+                setView('home');
+                setSelectedGame(null);
+                setSelectedItem(null);
+                setErrorMsg('');
+                setShowConfirmModal(false);
+                setShowQRModal(false);
+            };
+
+            const goToOrder = (game) => {
+                setSelectedGame(game);
+                setView('order');
+            };
+
+            const handleSuccessPayment = () => {
+                if (saveId && selectedGame) {
+                    localStorage.setItem(`miler_saved_${selectedGame.id}`, JSON.stringify({ userId, serverId }));
+                }
+
+                const newTx = {
+                    id: Date.now(),
+                    date: new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                    game: selectedGame.name,
+                    item: selectedItem.amount,
+                    price: selectedItem.price,
+                    userId: userId,
+                    serverId: serverId,
+                    status: 'Sukses'
+                };
+                
+                const newHistory = [newTx, ...history];
+                setHistory(newHistory);
+                localStorage.setItem('miler_history', JSON.stringify(newHistory));
+
+                const adminNumber = "6285656321860";
+                // Pesan berbeda jika Toko Tutup
+                const closingMsg = !isStoreOpen ? "%0A%0A*NOTE: Pesan ini dikirim saat Toko Tutup. Mohon diproses besok pagi ya kak.*" : "";
+
+                const message = `*Halo Miler Store, saya sudah melakukan pembayaran via QRIS.*%0A%0A` +
+                    `*Detail Pesanan:*%0A` +
+                    `Game: ${selectedGame.name}%0A` +
+                    `Item: ${selectedItem.amount}%0A` +
+                    `ID: ${userId} ${serverId ? `(${serverId})` : ''}%0A` +
+                    `Harga: ${formatRupiah(selectedItem.price)}%0A` +
+                    `Status: Sudah Scan QRIS%0A%0A` +
+                    `Mohon segera diproses ya, Terima Kasih!` + closingMsg;
+
+                window.open(`https://wa.me/${adminNumber}?text=${message}`, '_blank');
+                setShowQRModal(false);
+                setView('history');
+            };
+
+            const handlePreCheck = () => {
+                if (!userId) { setErrorMsg('Mohon isi ID akun kamu terlebih dahulu.'); return; }
+                if (selectedGame.inputs.length > 1 && !serverId) { setErrorMsg('Mohon isi Server ID kamu.'); return; }
+                if (!selectedItem) { setErrorMsg('Pilih nominal top up.'); return; }
+                setErrorMsg('');
+                setShowConfirmModal(true);
+            };
+
+            // --- SUB-COMPONENTS ---
+            const ConfirmModal = () => (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 max-w-sm w-full shadow-2xl">
+                        <div className="text-center">
+                            <div className="w-14 h-14 bg-yellow-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Icons.AlertTriangle size={28} className="text-yellow-500" />
+                            </div>
+                            <h3 className="text-xl font-bold text-white mb-2">Periksa ID Akun</h3>
+                            <p className="text-slate-400 text-sm mb-6">Pastikan ID benar.</p>
+                            <div className="bg-slate-900 rounded-lg p-4 mb-6 border border-slate-700">
+                                <div className="text-xs text-slate-500 mb-1 uppercase">ID Player</div>
+                                <div className="text-xl font-mono font-bold text-white tracking-wider">{userId} {serverId ? `(${serverId})` : ''}</div>
+                                <div className="text-xs text-violet-400 mt-2">Game: {selectedGame?.name}</div>
+                            </div>
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowConfirmModal(false)} className="flex-1 px-4 py-3 rounded-xl font-bold text-slate-300 bg-slate-700 hover:bg-slate-600 transition">Batal</button>
+                                <button onClick={() => { setShowConfirmModal(false); setShowQRModal(true); }} className="flex-1 px-4 py-3 rounded-xl font-bold text-white bg-violet-600 hover:bg-violet-700 transition">Lanjut Bayar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+
+            const QRModal = () => {
+                const qrisData = useMemo(() => {
+                    if (!selectedItem) return '';
+                    return generateQRISString(selectedItem.price);
+                }, [selectedItem]);
+                const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrisData)}`;
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in">
+                        <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl relative overflow-hidden">
+                            <button onClick={() => setShowQRModal(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"><Icons.X size={24} /></button>
+                            <div className="flex flex-col items-center text-center pt-8">
+                                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Logo_QRIS.svg/1200px-Logo_QRIS.svg.png" alt="QRIS" className="h-8 mb-4 object-contain" />
+                                <h3 className="text-lg font-bold text-slate-900">{selectedGame?.name}</h3>
+                                <p className="text-slate-500 text-sm mb-4">{selectedItem?.amount}</p>
+                                <div className="bg-white p-2 border-2 border-slate-200 rounded-xl mb-4 shadow-sm">
+                                    <img src={qrImageUrl} alt="QR Code" className="w-48 h-48" />
+                                </div>
+                                <div className="w-full bg-slate-50 p-3 rounded-lg border border-slate-100 mb-4">
+                                    <p className="text-xs text-slate-500 mb-1">Total Pembayaran</p>
+                                    <p className="text-2xl font-bold text-slate-900">{formatRupiah(selectedItem?.price)}</p>
+                                </div>
+                                <p className="text-xs text-slate-400 mb-4">Merchant: <span className="font-bold text-slate-600">MILLER TEVES</span></p>
+                                
+                                {!isStoreOpen && (
+                                    <div className="mb-4 bg-red-100 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2">
+                                        <Icons.Moon size={14} /> Admin sedang istirahat. Transaksi diproses besok jam 08.00 pagi.
+                                    </div>
+                                )}
+
+                                <button onClick={handleSuccessPayment} className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
+                                    <Icons.MessageCircle size={18} /> Saya Sudah Bayar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="min-h-screen pb-20">
+                    {showConfirmModal && <ConfirmModal />}
+                    {showQRModal && <QRModal />}
+
+                    <nav className="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800">
+                        <div className="max-w-xl mx-auto px-4 h-16 flex items-center justify-between">
+                            <div className="flex items-center gap-2 cursor-pointer" onClick={goToHome}>
+                                <div className="w-8 h-8 bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-lg flex items-center justify-center shadow-lg shadow-violet-500/20">
+                                    <Icons.Zap size={20} className="text-white fill-white" />
+                                </div>
+                                <div>
+                                    <h1 className="font-bold text-xl tracking-tight text-white leading-none">Miler<span className="text-violet-400">Store</span></h1>
+                                    {/* STATUS TOKO DI NAVBAR */}
+                                    <div className="flex items-center gap-1 mt-1">
+                                        <div className={`w-2 h-2 rounded-full ${isStoreOpen ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                                        <span className={`text-[10px] font-bold ${isStoreOpen ? 'text-green-400' : 'text-red-400'}`}>
+                                            {isStoreOpen ? 'BUKA' : 'TUTUP'}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button onClick={() => setView('history')} className={`p-2 rounded-lg transition-colors ${view === 'history' ? 'bg-slate-800 text-white' : 'text-slate-400 hover:text-white'}`}>
+                                    <Icons.History size={24} />
+                                </button>
+                                <button onClick={() => window.open('https://wa.me/6285656321860', '_blank')} className="p-2 text-slate-400 hover:text-green-400 transition-colors">
+                                    <Icons.MessageCircle size={24} />
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <main className="max-w-xl mx-auto px-4 py-6">
+                        
+                        {/* ALERT JIKA TUTUP */}
+                        {!isStoreOpen && (
+                            <div className="mb-6 bg-red-500/10 border border-red-500/50 rounded-xl p-4 flex items-start gap-3 animate-fade-in">
+                                <div className="bg-red-500/20 p-2 rounded-full text-red-500">
+                                    <Icons.Moon size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-red-400 text-sm">Toko Sedang Tutup</h3>
+                                    <p className="text-xs text-red-200/80 mt-1 leading-relaxed">
+                                        Admin sedang istirahat (23:00 - 08:00 WIT).<br/>
+                                        Pesanan yang masuk sekarang akan <b>diproses besok pagi</b>.
+                                    </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* HOME */}
+                        {view === 'home' && (
+                            <div className="space-y-6 animate-slide-up">
+                                <div className="text-center py-4">
+                                    <h2 className="text-2xl font-bold text-white mb-2">Pilih Game</h2>
+                                    <p className="text-slate-400 text-sm">Top up cepat, aman, dan otomatis.</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {GAMES.map((game) => (
+                                        <div key={game.id} onClick={() => goToOrder(game)} className="group relative bg-slate-900 border border-slate-800 hover:border-violet-500/50 rounded-2xl overflow-hidden cursor-pointer transition-all hover:shadow-xl hover:shadow-violet-500/10 hover:-translate-y-1">
+                                            <div className={`h-28 w-full bg-gradient-to-br ${game.color} flex items-center justify-center relative overflow-hidden`}>
+                                                <div className="absolute inset-0 bg-black/10"></div>
+                                                <span className="text-5xl drop-shadow-lg transform group-hover:scale-110 transition-transform duration-300">{game.icon}</span>
+                                            </div>
+                                            <div className="p-4 text-center">
+                                                <h4 className="font-bold text-white text-lg">{game.name}</h4>
+                                                <p className="text-xs text-slate-500">{game.developer}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ORDER */}
+                        {view === 'order' && selectedGame && (
+                            <div className="animate-fade-in pb-24">
+                                <button onClick={goToHome} className="mb-6 flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm">
+                                    <Icons.ChevronLeft size={18} /> Kembali
+                                </button>
+                                <div className="flex items-center gap-4 mb-8">
+                                   <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${selectedGame.color} flex items-center justify-center shadow-lg shrink-0`}>
+                                      <span className="text-3xl">{selectedGame.icon}</span>
+                                    </div>
+                                    <div>
+                                      <h2 className="text-2xl font-bold text-white">{selectedGame.name}</h2>
+                                      <div className="flex items-center gap-1 text-green-400 text-xs font-medium bg-green-400/10 px-2 py-0.5 rounded-full w-fit mt-1">
+                                        <Icons.Zap size={10} className="fill-green-400" /> Proses Otomatis
+                                      </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-6">
+                                    <section>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-6 h-6 rounded-full bg-violet-600 flex items-center justify-center text-xs font-bold text-white">1</div>
+                                            <h3 className="font-bold text-slate-200">Masukkan ID Akun</h3>
+                                        </div>
+                                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4">
+                                            <div className="grid grid-cols-2 gap-3 mb-3">
+                                                <div className={selectedGame.inputs.length === 1 ? 'col-span-2' : 'col-span-1'}>
+                                                    <input type="text" placeholder={selectedGame.inputs[0]} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:ring-1 focus:ring-violet-500 outline-none text-white placeholder:text-slate-600" value={userId} onChange={(e) => setUserId(e.target.value)} />
+                                                </div>
+                                                {selectedGame.inputs.length > 1 && (
+                                                    <div className="col-span-1">
+                                                        <input type="text" placeholder={selectedGame.inputs[1]} className="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-3 text-sm focus:ring-1 focus:ring-violet-500 outline-none text-white placeholder:text-slate-600" value={serverId} onChange={(e) => setServerId(e.target.value)} />
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* CHECKBOX SIMPAN ID */}
+                                            <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer hover:text-white transition-colors select-none mt-2">
+                                                <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${saveId ? 'bg-violet-600 border-violet-600' : 'bg-transparent border-slate-600'}`}>
+                                                    {saveId && <Icons.CheckCircle size={14} className="text-white" />}
+                                                </div>
+                                                <input type="checkbox" className="hidden" checked={saveId} onChange={(e) => setSaveId(e.target.checked)} />
+                                                Simpan ID
+                                            </label>
+                                        </div>
+                                    </section>
+                                    <section>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-6 h-6 rounded-full bg-violet-600 flex items-center justify-center text-xs font-bold text-white">2</div>
+                                            <h3 className="font-bold text-slate-200">Pilih Item</h3>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                            {selectedGame.items.map((item) => (
+                                                <div key={item.id} onClick={() => setSelectedItem(item)} className={`relative cursor-pointer p-3 rounded-xl border transition-all text-left ${selectedItem?.id === item.id ? 'bg-violet-900/20 border-violet-500 ring-1 ring-violet-500' : 'bg-slate-900 border-slate-800 hover:bg-slate-800'}`}>
+                                                    <div className="font-bold text-white text-sm mb-1 leading-tight">{item.amount}</div>
+                                                    <div className="text-violet-300 text-xs font-medium">Rp {item.price.toLocaleString('id-ID')}</div>
+                                                    {selectedItem?.id === item.id && <div className="absolute top-2 right-2"><Icons.CheckCircle size={14} className="text-violet-400 fill-violet-400/20" /></div>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+
+                                    <section>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-6 h-6 rounded-full bg-violet-600 flex items-center justify-center text-xs font-bold text-white">3</div>
+                                            <h3 className="font-bold text-slate-200">Metode Pembayaran</h3>
+                                        </div>
+                                        <div className="bg-slate-800/50 border border-violet-500/30 rounded-xl p-4 flex items-center justify-between ring-1 ring-violet-500/20">
+                                            <div className="flex items-center gap-3">
+                                                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/Logo_QRIS.svg/1200px-Logo_QRIS.svg.png" className="h-6 bg-white rounded px-1" alt="QRIS"/>
+                                                <div><div className="font-bold text-white text-sm">QRIS Dinamis</div><div className="text-xs text-slate-400">Scan & Bayar Otomatis</div></div>
+                                            </div>
+                                            <Icons.CheckCircle size={20} className="text-violet-500" />
+                                        </div>
+                                    </section>
+                                    
+                                    <button onClick={handlePreCheck} disabled={!selectedItem} className={`w-full py-4 rounded-xl font-bold text-white text-lg flex items-center justify-center gap-2 transition-all shadow-lg mt-4 ${!selectedItem ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-slate-700' : 'bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:shadow-violet-600/30 active:scale-95'}`}>
+                                        <Icons.Wallet size={20} />
+                                        {selectedItem ? `Bayar ${formatRupiah(selectedItem.price)}` : 'Pilih Item Dulu'}
+                                    </button>
+                                    {errorMsg && <div className="bg-red-500/10 border border-red-500/50 text-red-200 p-3 rounded-xl text-sm text-center animate-pulse">{errorMsg}</div>}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* HISTORY */}
+                        {view === 'history' && (
+                            <div className="animate-fade-in space-y-6">
+                                <div className="flex items-center gap-3">
+                                    <button onClick={goToHome} className="p-2 rounded-full hover:bg-slate-800 transition"><Icons.ChevronLeft size={20} /></button>
+                                    <h2 className="text-xl font-bold text-white">Riwayat Transaksi</h2>
+                                </div>
+
+                                {history.length === 0 ? (
+                                    <div className="text-center py-12 bg-slate-900 rounded-2xl border border-slate-800">
+                                        <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-600">
+                                            <Icons.History size={32} />
+                                        </div>
+                                        <p className="text-slate-400">Belum ada transaksi</p>
+                                        <button onClick={goToHome} className="mt-4 text-violet-400 font-bold text-sm hover:underline">Mulai Top Up</button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {history.map((tx) => (
+                                            <div key={tx.id} className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-col gap-3">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex gap-3">
+                                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${tx.game === 'Free Fire' ? 'bg-orange-900/30 text-orange-500' : 'bg-blue-900/30 text-blue-500'}`}>
+                                                            {tx.game === 'Free Fire' ? '🔥' : '⚔️'}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-white text-sm">{tx.item}</h4>
+                                                            <div className="text-xs text-slate-500">{tx.game} • {tx.date}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="bg-green-500/10 text-green-500 text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wide">
+                                                        {tx.status}
+                                                    </div>
+                                                </div>
+                                                <div className="border-t border-slate-800 pt-3 flex justify-between items-center text-sm">
+                                                    <div className="text-slate-400 font-mono text-xs">ID: {tx.userId}</div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="font-bold text-white">{formatRupiah(tx.price)}</div>
+                                                        <button 
+                                                            onClick={() => downloadReceipt(tx)}
+                                                            className="bg-violet-600 hover:bg-violet-700 p-1.5 rounded-lg text-white transition-colors" title="Download Struk">
+                                                            <Icons.Download size={16} />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                    </main>
+                    <footer className="border-t border-slate-800 py-6 mt-8 text-center bg-slate-900">
+                        <div className="max-w-xl mx-auto px-4">
+                            <h2 className="font-bold text-lg text-white mb-1">Miler<span className="text-violet-400">Store</span></h2>
+                            <p className="text-slate-500 text-xs mb-4">Ambon, Maluku, Indonesia</p>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
